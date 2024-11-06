@@ -6,12 +6,11 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"github.com/spf13/pflag"
 	"hash/crc32"
 	"log"
 	"os"
 	"strconv"
-
-	"github.com/spf13/pflag"
 )
 
 // Magic Bytes
@@ -152,29 +151,92 @@ func (mc *MetaChunk) marshalData() *bytes.Buffer {
 func (mc *MetaChunk) processImage(b *bytes.Reader, c *cmdLineOpts) {
 	mc.validate(b)
 
-	count := 1
-	chunkType := ""
-	endChunkType := "IEND"
-	for chunkType != endChunkType {
-		fmt.Println("---- Chunk # " + strconv.Itoa(count) + " ----")
-		offset := mc.getOffset(b)
-		fmt.Printf("Chunk Offset: %#02x\n", offset)
-		mc.readChunk(b)
-
-		chunkType = mc.chunkTypeToString()
-		count++
+	if (c.Offset != "") && c.Encode {
+		var m MetaChunk
+		m.Chk.Data = xorEncode([]byte(c.Payload), c.Key)
+		m.Chk.Type = m.strToInt(c.Type)
+		m.Chk.Size = m.createChunkSize()
+		m.Chk.CRC = m.createChunkCRC()
+		bm := m.marshalData()
+		bmb := bm.Bytes()
+		fmt.Printf("Payload Original: % X\n", []byte(c.Payload))
+		fmt.Printf("Payload Encode: % X\n", m.Chk.Data)
+		writeData(b, c, bmb)
 	}
 
-	var m MetaChunk
-	m.Chk.Data = []byte(c.Payload)
-	m.Chk.Type = m.strToInt(c.Type)
-	m.Chk.Size = m.createChunkSize()
-	m.Chk.CRC = m.createChunkCRC()
-	bm := m.marshalData()
-	bmb := bm.Bytes()
-	fmt.Printf("Payload Original: % X\n", []byte(c.Payload))
-	fmt.Printf("Payload: % X\n", m.Chk.Data)
-	writeData(b, c, bmb)
+	if (c.Offset != "") && c.Decode {
+		var m MetaChunk
+		var offset int64
+		var err error
+		if len(c.Offset) > 2 && c.Offset[:2] == "0x" {
+			offset, err = strconv.ParseInt(c.Offset[2:], 16, 64)
+		} else {
+			offset, err = strconv.ParseInt(c.Offset, 10, 64)
+		}
+		if err != nil {
+			log.Fatal("Invalid offset:", err)
+		}
+
+		// Seek to the offset
+		_, err = b.Seek(offset, 0)
+		if err != nil {
+			log.Fatal("Error seeking to offset:", err)
+		}
+
+		// Read the chunk data
+		m.readChunk(b)
+		if m.Chk.Size == 0 {
+			log.Fatal("Invalid chunk size at offset")
+		}
+
+		origData := make([]byte, len(m.Chk.Data))
+		copy(origData, m.Chk.Data)
+
+		// Decode the data
+		m.Chk.Data = xorDecode(m.Chk.Data, c.Key)
+		m.Chk.CRC = m.createChunkCRC()
+
+		bm := m.marshalData()
+		bmb := bm.Bytes()
+
+		fmt.Printf("Payload Original: % X\n", origData)
+		fmt.Printf("Payload Decode: % X\n", m.Chk.Data)
+		writeData(b, c, bmb)
+	}
+}
+
+func init() {
+	flags.StringVarP(&opts.Input, "input", "i", "", "Input PNG file")
+	flags.StringVarP(&opts.Output, "output", "o", "", "Output PNG file")
+	flags.BoolVarP(&opts.Meta, "meta", "m", false, "Show PNG metadata")
+	flags.BoolVar(&opts.Suppress, "suppress", false, "Suppress chunk hex output")
+	flags.StringVar(&opts.Offset, "offset", "", "Offset to inject payload")
+	flags.BoolVar(&opts.Inject, "inject", false, "Inject mode")
+	flags.StringVar(&opts.Payload, "payload", "", "Payload to inject")
+	flags.StringVar(&opts.Type, "type", "tEXt", "Chunk type to inject")
+	flags.BoolVar(&opts.Encode, "encode", false, "Encode payload")
+	flags.BoolVar(&opts.Decode, "decode", false, "Decode payload")
+	flags.StringVar(&opts.Key, "key", "", "Key for encoding/decoding")
+}
+
+func parseFlags() error {
+	return flags.Parse(os.Args[1:])
+}
+
+func encodeDecode(input []byte, key string) []byte {
+	var bArr = make([]byte, len(input))
+	for i := 0; i < len(input); i++ {
+		bArr[i] += input[i] ^ key[i%len(key)]
+	}
+	return bArr
+}
+
+func xorEncode(decode []byte, key string) []byte {
+	return encodeDecode(decode, key)
+}
+
+func xorDecode(encode []byte, key string) []byte {
+	return encodeDecode(encode, key)
 }
 
 var (
@@ -184,11 +246,24 @@ var (
 )
 
 func main() {
+	if err := parseFlags(); err != nil {
+		log.Fatal(err)
+	}
+
+	if opts.Input == "" {
+		log.Fatal("Input file is required")
+	}
+
 	dat, err := os.Open(opts.Input)
-	defer dat.Close()
-	bReader, err := preProcessImage(dat)
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer dat.Close()
+
+	bReader, err := preProcessImage(dat)
+	if err != nil {
+		log.Fatal("Pre process image error", err.Error())
+	}
+
 	png.processImage(bReader, &opts)
 }

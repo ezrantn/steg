@@ -32,7 +32,7 @@ The project is implemented in Go and is designed to be integrated into a web app
 
 Steganography is the practice of concealing information within other non-secret data to avoid detection. The Least Significant Bit (LSB) technique is a common method used in image steganography.
 
-### Traditional LSB in Images:
+### Traditional LSB in Images
 
 1. In a typical image, each pixel is represented by color values (e.g., RGB).
 2. Each color value is usually stored as an 8-bit integer (0-255).
@@ -47,7 +47,7 @@ Example:
 
 New pixel: (139, 255, 75)
 
-### Adaptation for PNG Chunks:
+### Adaptation for PNG Chunks
 
 My project adapts the LSB concept to work with PNG file structures:
 
