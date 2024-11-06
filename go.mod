@@ -1,4 +1,4 @@
-module github.com/ezrantn/steganogo
+module github.com/ezrantn/steg
 
 go 1.22.5
 
