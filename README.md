@@ -13,7 +13,7 @@ The program allows encoding (hiding) a message in a PNG file and decoding (retri
 To hide a message in a PNG file, use the `--encode` option along with the input image, output file, secret key, and offset for added security.
 
 ```shell
-go run . -i <input_image.png> -o <output_image.png> --key <secret_key> --offset <integer_offset> --encode
+go run . -i <input_image.png> -o <output_image.png> --key <secret_key> --offset <integer_offset> --payload <string> encode
 ```
 
 Parameters:
@@ -22,11 +22,12 @@ Parameters:
 - `-o <output_image.png>`: The output PNG file with the hidden message.
 - `--key <secret_key>`: A string key used to encode the message.
 - `--offset <integer_offset>`: An integer offset to add randomness in the message's position.
+- `--payload <string>`: This is whatever message that you want to hide inside the image.
 
 #### Example
 
 ```shell
-go run . -i original.png -o output.png --key gophersValid --offset 1337 --encode
+go run . -i original.png -o output.png --key gophersValid --offset 1337 --payload "Hello there" encode
 ```
 
 ### Decoding a Message
@@ -34,7 +35,7 @@ go run . -i original.png -o output.png --key gophersValid --offset 1337 --encode
 To retrieve a hidden message from a PNG file, use the --decode option along with the input PNG, output file, secret key, and offset used during encoding.
 
 ```shell
-go run . -i <input_image.png> -o <decoded_output.png> --key <secret_key> --offset <integer_offset> --decode
+go run . -i <input_image.png> -o <decoded_output.png> --key <secret_key> --offset <integer_offset> decode
 ```
 
 Parameters:
@@ -47,12 +48,12 @@ Parameters:
 #### Example
 
 ```shell
-go run . -i output.png -o decoded_output.png --key gophersValid --offset 1337 --decode
+go run . -i output.png -o decoded_output.png --key gophersValid --offset 1337 decode
 ```
 
 ### Viewing the Decoded Message
 
-After decoding, the program will print the hidden message in the terminal as `Payload Decode`. Alternatively, open the `decoded_output.png` to see the retrieved message if it’s stored in a separate text format.
+After decoding, the program will print the hidden message in the terminal as `Decoded Payload`. Alternatively, open the `decoded_output.png` to see the retrieved message if it’s stored in a separate text format.
 
 ## Program Structure
 
