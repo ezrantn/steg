@@ -4,79 +4,80 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"strconv"
 )
 
-func writeData(r *bytes.Reader, c *cmdLineOpts, b []byte) {
-	var offset int64
-	var err error
-
-	// Check if the offset is in hex format (starts with 0x)
-	if len(c.Offset) > 2 && c.Offset[:2] == "0x" {
-		offset, err = strconv.ParseInt(c.Offset[2:], 16, 64)
-	} else {
-		offset, err = strconv.ParseInt(c.Offset, 10, 64)
-	}
-
+func writeData(r *bytes.Reader, outputPath string, newChunk []byte, offset string) error {
+	// Parse the offset from string to int64
+	offsetInt, err := parseOffset(offset)
 	if err != nil {
-		log.Fatal("ParseInt failed: ", err)
+		return fmt.Errorf("invalid offset: %v", err)
 	}
 
-	// Get the total size of the input file
-	totalSize := r.Size()
-	if offset >= totalSize {
-		log.Fatal("Offset is beyond the end of file")
-	}
-
-	w, err := os.OpenFile(c.Output, os.O_RDWR|os.O_CREATE, 0777)
+	// Open the output file for reading and writing, or create it if it doesn’t exist
+	outputFile, err := os.OpenFile(outputPath, os.O_RDWR|os.O_CREATE, 0777)
 	if err != nil {
-		log.Fatal("Fatal: Problem writing to the output file!")
+		return fmt.Errorf("could not open output file: %v", err)
 	}
-	defer w.Close()
+	defer outputFile.Close()
 
-	// Reset reader position
-	_, err = r.Seek(0, 0)
+	// Validate that offset is within the file size
+	if offsetInt >= r.Size() {
+		return fmt.Errorf("offset is beyond the end of file")
+	}
+
+	// Reset the reader to the beginning of the file
+	_, err = r.Seek(0, io.SeekStart)
 	if err != nil {
-		log.Fatal("Error seeking to start: ", err)
+		return fmt.Errorf("error resetting reader position: %v", err)
 	}
 
-	// Copy the first part of the file
-	var buff = make([]byte, offset)
-	n, err := r.Read(buff)
+	// Write the data before the offset
+	if err := copyData(r, outputFile, offsetInt); err != nil {
+		return err
+	}
+
+	// Write the new chunk data at the offset position
+	if _, err = outputFile.Write(newChunk); err != nil {
+		return fmt.Errorf("error writing new chunk data: %v", err)
+	}
+
+	// If decoding, skip the old chunk in the input file
+	if _, err = r.Seek(int64(len(newChunk)), io.SeekCurrent); err != nil {
+		return fmt.Errorf("error skipping old chunk: %v", err)
+	}
+
+	// Copy the remaining data from the original file
+	if _, err = io.Copy(outputFile, r); err != nil {
+		return fmt.Errorf("error copying remaining data: %v", err)
+	}
+
+	fmt.Printf("Success: %s created\n", outputPath)
+	return nil
+}
+
+// parseOffset parses the offset, supporting both hex (0x-prefixed) and decimal formats.
+func parseOffset(offset string) (int64, error) {
+	if len(offset) > 2 && offset[:2] == "0x" {
+		return strconv.ParseInt(offset[2:], 16, 64)
+	}
+	return strconv.ParseInt(offset, 10, 64)
+}
+
+// copyData copies data from the reader to the writer up to a specified number of bytes.
+func copyData(r *bytes.Reader, w *os.File, bytesToCopy int64) error {
+	buffer := make([]byte, bytesToCopy)
+	n, err := r.Read(buffer)
 	if err != nil && err != io.EOF {
-		log.Fatal("Error reading bytes: ", err)
+		return fmt.Errorf("error reading bytes: %v", err)
 	}
-	if n != len(buff) {
-		log.Fatal("Could not read enough bytes")
-	}
-
-	// Write the first part
-	_, err = w.Write(buff)
-	if err != nil {
-		log.Fatal("Error writing initial bytes: ", err)
+	if int64(n) != bytesToCopy {
+		return fmt.Errorf("could not read the expected number of bytes")
 	}
 
-	// Write the new chunk data
-	_, err = w.Write(b)
-	if err != nil {
-		log.Fatal("Error writing payload bytes: ", err)
+	if _, err := w.Write(buffer); err != nil {
+		return fmt.Errorf("error writing bytes: %v", err)
 	}
-
-	// Skip the old chunk when decoding
-	if c.Decode {
-		_, err = r.Seek(int64(len(b)), 1)
-		if err != nil {
-			log.Fatal("Error seeking past old chunk: ", err)
-		}
-	}
-
-	// Copy the rest of the file
-	_, err = io.Copy(w, r)
-	if err != nil {
-		log.Fatal("Error copying remaining data: ", err)
-	}
-
-	fmt.Printf("Success: %s created\n", c.Output)
+	return nil
 }
