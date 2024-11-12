@@ -10,7 +10,7 @@ The program allows encoding (hiding) a message in a PNG file and decoding (retri
 
 ### Encoding a Message
 
-To hide a message in a PNG file, use the `--encode` option along with the input image, output file, secret key, and offset for added security.
+To hide a message in a PNG file, use the `encode` option along with the input image, output file, secret key, and offset for added security.
 
 ```shell
 go run . -i <input_image.png> -o <output_image.png> --key <secret_key> --offset <integer_offset> --payload <string> encode
@@ -32,7 +32,7 @@ go run . -i original.png -o output.png --key gophersValid --offset 1337 --payloa
 
 ### Decoding a Message
 
-To retrieve a hidden message from a PNG file, use the --decode option along with the input PNG, output file, secret key, and offset used during encoding.
+To retrieve a hidden message from a PNG file, use the `decode` option along with the input PNG, output file, secret key, and offset used during encoding.
 
 ```shell
 go run . -i <input_image.png> -o <decoded_output.png> --key <secret_key> --offset <integer_offset> decode
@@ -66,10 +66,10 @@ Steg is written in Go, focusing on two primary functions:
 
 - **Performance Optimization**: Improve the tool’s efficiency, especially with large files.
 - **Support for Multiple Formats**: Expand support to additional image formats beyond PNG.
+- **More Robust Encryption**: Currently, Steg uses XOR to encrypt the payload, but I'm working on implementing a more robust algorithm.
 
+## Warning ⚠️
 
+This CLI is not production-ready yet. Steg still has a long way to go before it can be used as a real steganography tool. This project is an experimental and learning process for me to understand and implement steganography concepts.
 
-
-
-
-
+However, you’re welcome to try it out and explore its features. If you find a bug or have suggestions for improvement, please feel free to submit a pull request to this repository.
